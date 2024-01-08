@@ -5,23 +5,25 @@
 #define WINDOW_X 500
 #define WINDOW_Y 50
 
-#define GRID_SIZE 20
-#define TREE_DIM (GRID_SIZE / 2) // 4
-#define V (TREE_DIM * TREE_DIM)
+#define GRID_SIZE 14
+#define TREE_SIZE (GRID_SIZE / 2)
+#define V (TREE_SIZE * TREE_SIZE)
+#define V_M (GRID_SIZE * GRID_SIZE)
 #define MAX_SNAKE_SIZE (GRID_SIZE * GRID_SIZE)
 #define GRID_DIM 800
 
-#define DELAY 100
+#define DELAY 80
 
 typedef enum {
-  SNAKE_UP,
-  SNAKE_DOWN,
-  SNAKE_LEFT,
-  SNAKE_RIGHT,
+  UP,    // 0
+  DOWN,  // 1
+  LEFT,  // 2
+  RIGHT, // 3
 } Dir;
 
 typedef struct {
   int x, y;
+  Dir d;
 } Point;
 
 typedef struct {
@@ -49,8 +51,9 @@ Point dequeue(Frontier *f) {
 Fruit fruit;
 Point snake[MAX_SNAKE_SIZE];
 int snake_begin_index = 0;
+// IMPORANT RESTRICTIONS FOR MAZE TRAVERSAL
 int snake_size = 1;
-Dir snake_dir = SNAKE_UP;
+Dir snake_dir = UP;
 
 int mod(int a, int b) {
   int res = a % b;
@@ -61,8 +64,8 @@ int mod(int a, int b) {
 }
 
 void init_snake(int size) {
-  int x = rand() % GRID_SIZE;
-  int y = rand() % GRID_SIZE;
+  int x = 0;
+  int y = 0;
   snake[snake_begin_index].x = x;
   snake[snake_begin_index].y = y;
   for (int i = 1; i < size; i++) {
@@ -73,12 +76,26 @@ void init_snake(int size) {
   }
 }
 
+void reset_game() {
+  snake_begin_index = 0;
+  snake_dir = UP;
+  snake_size = 1;
+  init_snake(5);
+  if (fruit.score > fruit.high_score) {
+    fruit.high_score = fruit.score;
+  }
+  fruit.score = 0;
+}
+
 void add_snake(int x, int y) {
   // add to the head
   snake_begin_index = mod(snake_begin_index - 1, MAX_SNAKE_SIZE);
   snake[snake_begin_index].x = x;
   snake[snake_begin_index].y = y;
   snake_size++;
+  if (snake_size >= (GRID_SIZE * GRID_SIZE) - 1) {
+    reset_game();
+  }
 }
 
 void delete_snake() {
@@ -87,30 +104,9 @@ void delete_snake() {
   snake_size--;
 }
 
-void gen_fruit() {
-  int x, y;
-  bool overlap;
-  do {
-    // reset state each iteration
-    overlap = false;
-    x = rand() % GRID_SIZE;
-    y = rand() % GRID_SIZE;
-    for (int i = 0; i < snake_size; i++) {
-      int snake_index = mod(snake_begin_index + i, MAX_SNAKE_SIZE);
-      if (x == snake[snake_index].x && y == snake[snake_index].y) {
-        overlap = true;
-        break;
-      }
-    }
-  } while (overlap);
-  fruit.p.x = x;
-  fruit.p.y = y;
-  fruit.score++;
-}
-
 void render_grid(SDL_Renderer *renderer, int x, int y) {
   SDL_SetRenderDrawColor(renderer, 0x28, 0x28, 0x28, 255);
-#if 1
+#if 0
 
   int cell_size = GRID_DIM / GRID_SIZE;
 
@@ -152,6 +148,28 @@ void render_fruit(SDL_Renderer *renderer, int x, int y) {
   SDL_RenderFillRect(renderer, &fruit_seg);
 }
 
+
+void gen_fruit() {
+  int x, y;
+  bool overlap;
+  do {
+    // reset state each iteration
+    overlap = false;
+    x = rand() % GRID_SIZE;
+    y = rand() % GRID_SIZE;
+    for (int i = 0; i < snake_size; i++) {
+      int snake_index = mod(snake_begin_index + i, MAX_SNAKE_SIZE);
+      if (x == snake[snake_index].x && y == snake[snake_index].y) {
+        overlap = true;
+        break;
+      }
+    }
+  } while (overlap);
+  fruit.p.x = x;
+  fruit.p.y = y;
+  fruit.score++;
+}
+
 bool check_collision_fruit() {
   int head_x = snake[snake_begin_index].x;
   int head_y = snake[snake_begin_index].y;
@@ -174,17 +192,6 @@ bool check_collision_snake() {
   return false;
 }
 
-void reset_game() {
-  snake_begin_index = 0;
-  snake_dir = SNAKE_UP;
-  snake_size = 1;
-  init_snake(5);
-  if (fruit.score > fruit.high_score) {
-    fruit.high_score = fruit.score;
-  }
-  fruit.score = 0;
-}
-
 void move_snake() {
   int head_x = snake[snake_begin_index].x;
   int head_y = snake[snake_begin_index].y;
@@ -194,16 +201,16 @@ void move_snake() {
   bool snake_col = false;
 
   switch (head_dir) {
-  case SNAKE_UP:
+  case UP:
     head_y = mod(head_y - 1, GRID_SIZE);
     break;
-  case SNAKE_LEFT:
-    head_x = mod(head_x - 1, GRID_SIZE);
-    break;
-  case SNAKE_DOWN:
+  case DOWN:
     head_y = mod(head_y + 1, GRID_SIZE);
     break;
-  case SNAKE_RIGHT:
+  case LEFT:
+    head_x = mod(head_x - 1, GRID_SIZE);
+    break;
+  case RIGHT:
     head_x = mod(head_x + 1, GRID_SIZE);
     break;
   }
@@ -230,6 +237,12 @@ void render_snake(SDL_Renderer *renderer, int x, int y) {
   seg_out.w = seg_size;
   seg_out.h = seg_size;
 
+  SDL_Rect dir_dot_1, dir_dot_2;
+  dir_dot_1.w = seg_size / 4;
+  dir_dot_1.h = seg_size / 4;
+  dir_dot_2.w = seg_size / 4;
+  dir_dot_2.h = seg_size / 4;
+
   int bright = 255;
   int b_dir = 0;
 
@@ -244,6 +257,36 @@ void render_snake(SDL_Renderer *renderer, int x, int y) {
     seg.x = x + snake[snake_index].x * seg_size;
     seg.y = y + snake[snake_index].y * seg_size;
     SDL_RenderFillRect(renderer, &seg);
+    // dot pointing int the direction of snake head
+    // size = 1 so no need to worry to much
+    SDL_SetRenderDrawColor(renderer, 0x00, 0x26, 0xab, 255);
+    dir_dot_1.x = x + snake[snake_begin_index].x * seg_size;
+    dir_dot_1.y = y + snake[snake_begin_index].y * seg_size;
+    dir_dot_2 = dir_dot_1;
+    switch (snake_dir) {
+    case UP:
+      dir_dot_1.x = dir_dot_1.x + seg.w / 5;
+      dir_dot_2.x = dir_dot_1.x + 2 * seg.w / 5;
+      break;
+    case LEFT:
+      dir_dot_1.y = dir_dot_1.y + seg.h / 5;
+      dir_dot_2.y = dir_dot_1.y + 2 * seg.h / 5;
+      break;
+    case DOWN:
+      dir_dot_1.x = dir_dot_1.x + seg.w / 5;
+      dir_dot_2.x = dir_dot_1.x + 2 * seg.w / 5;
+      dir_dot_1.y = dir_dot_1.y + 4 * seg.h / 5;
+      dir_dot_2.y = dir_dot_1.y;
+      break;
+    case RIGHT:
+      dir_dot_1.x = dir_dot_1.x + 4 * seg.w / 5;
+      dir_dot_2.x = dir_dot_1.x;
+      dir_dot_1.y = dir_dot_1.y + seg.h / 5;
+      dir_dot_2.y = dir_dot_1.y + 2 * seg.h / 5;
+      break;
+    }
+    SDL_RenderFillRect(renderer, &dir_dot_1);
+    SDL_RenderFillRect(renderer, &dir_dot_2);
 
     if (b_dir == 0) {
       bright -= 5;
@@ -363,35 +406,38 @@ void render_high_score(SDL_Renderer *renderer, int x, int y) {
 }
 
 // Spanning Tree adjacency matrix
-bool spanning_tree[V][V];
+bool spanning_tree[V][V] = {false};
+bool maze[V_M][V_M] = {false};
 
 void get_adjacent_nodes(int x, int y, Point *adjacent_nodes,
-                        int *no_of_adjacent_nodes) {
-  int x_lim = TREE_DIM - 1;
-  int y_lim = TREE_DIM - 1;
+                        int *no_of_adjacent_nodes, int x_lim, int y_lim) {
   int i = 0;
   if (y > 0) {
     // up neighbor
     adjacent_nodes[i].x = x;
     adjacent_nodes[i].y = y - 1;
-    i++;
-  }
-  if (x > 0) {
-    // left neighbor
-    adjacent_nodes[i].x = x - 1;
-    adjacent_nodes[i].y = y;
+    adjacent_nodes[i].d = UP;
     i++;
   }
   if (y < y_lim) {
     // down neighbor
     adjacent_nodes[i].x = x;
     adjacent_nodes[i].y = y + 1;
+    adjacent_nodes[i].d = DOWN;
+    i++;
+  }
+  if (x > 0) {
+    // left neighbor
+    adjacent_nodes[i].x = x - 1;
+    adjacent_nodes[i].y = y;
+    adjacent_nodes[i].d = LEFT;
     i++;
   }
   if (x < x_lim) {
     // right neighbor
     adjacent_nodes[i].x = x + 1;
     adjacent_nodes[i].y = y;
+    adjacent_nodes[i].d = RIGHT;
     i++;
   }
   *no_of_adjacent_nodes = i;
@@ -409,37 +455,23 @@ void gen_tree() {
   bool frontier_mask[V] = {false};
   int visited_size = 0;
 
-  // Spanning Tree adjacency matrix
-  for (int i = 0; i < V; i++) {
-    for (int j = 0; j < V; j++) {
-      spanning_tree[j][i] = false;
-    }
-  }
-
   Point adjacent_nodes[4];
   int no_of_adjacent_nodes = 0;
 
-  Point start;
-  /* start.x = 2;
-  start.y = 0; */
-  start.x = rand() % TREE_DIM;
-  start.y = rand() % TREE_DIM;
+  Point start = {rand() % TREE_SIZE, rand() % TREE_SIZE};
 
   // Add nodes adjacent to start to the frontier
-  get_adjacent_nodes(start.x, start.y, adjacent_nodes, &no_of_adjacent_nodes);
+  get_adjacent_nodes(start.x, start.y, adjacent_nodes, &no_of_adjacent_nodes,
+                     TREE_SIZE - 1, TREE_SIZE - 1);
   for (int i = 0; i < no_of_adjacent_nodes; i++) {
-    Point adj;
-    adj.x = adjacent_nodes[i].x;
-    adj.y = adjacent_nodes[i].y;
+    Point adj = adjacent_nodes[i];
     enqueue(&frontier, adj);
-    frontier_mask[adj.x + TREE_DIM * adj.y] = true;
+    frontier_mask[adj.x + TREE_SIZE * adj.y] = true;
   }
 
   // Mark start as visited
-  visited[start.x + TREE_DIM * start.y] = true;
+  visited[start.x + TREE_SIZE * start.y] = true;
   visited_size++;
-  // print_adjacent_nodes(start.x, start.y, adjacent_nodes,
-  // &no_of_adjacent_nodes);
 
   // Main loop for finding the Spanning Tree
   while (visited_size < (V)) {
@@ -451,17 +483,13 @@ void gen_tree() {
     // Iterate through the nodes adjacent to current node
     no_of_adjacent_nodes = 0;
     get_adjacent_nodes(current.x, current.y, adjacent_nodes,
-                       &no_of_adjacent_nodes);
+                       &no_of_adjacent_nodes, TREE_SIZE - 1, TREE_SIZE - 1);
     for (int i = 0; i < no_of_adjacent_nodes; i++) {
-      int idx = adjacent_nodes[i].x + TREE_DIM * adjacent_nodes[i].y;
+      int idx = adjacent_nodes[i].x + TREE_SIZE * adjacent_nodes[i].y;
       if (visited[idx]) {
-        available[available_size].x = adjacent_nodes[i].x;
-        available[available_size].y = adjacent_nodes[i].y;
-        available_size++;
+        available[available_size++] = adjacent_nodes[i];
       } else if (!frontier_mask[idx]) {
-        Point p;
-        p.x = adjacent_nodes[i].x;
-        p.y = adjacent_nodes[i].y;
+        Point p = adjacent_nodes[i];
         enqueue(&frontier, p);
         frontier_mask[idx] = true;
       }
@@ -469,20 +497,88 @@ void gen_tree() {
 
     // Pick a random node from available nodes for connections
     Point next = available[rand() % available_size];
-    int a = current.x + TREE_DIM * current.y;
-    int b = next.x + TREE_DIM * next.y;
+    int a = current.x + TREE_SIZE * current.y;
+    int b = next.x + TREE_SIZE * next.y;
     spanning_tree[a][b] = true;
     spanning_tree[b][a] = true;
+    // WALLS
+    int ax = current.x * 2;
+    int ay = current.y * 2;
+    int bx = next.x * 2;
+    int by = next.y * 2;
+    switch (next.d) {
+    case UP:
+      for (int i = ay - 1; i >= by; i--) {
+        int x = ax + 1;
+        int y = i + 1;
+        // x, y and x-1, y have a wall between them
+        int a = x + GRID_SIZE * y;
+        int b = (x - 1) + GRID_SIZE * y;
+        maze[a][b] = true;
+        maze[b][a] = true;
+      }
+      break;
+    case DOWN:
+      for (int i = ay; i <= by - 1; i++) {
+        int x = ax + 1;
+        int y = i + 1;
+        // x, y and x-1, y have a wall between them
+        int a = x + GRID_SIZE * y;
+        int b = (x - 1) + GRID_SIZE * y;
+        maze[a][b] = true;
+        maze[b][a] = true;
+      }
+      break;
+    case LEFT:
+      for (int i = ax - 1; i >= bx; i--) {
+        int x = i + 1;
+        int y = ay + 1;
+        // x, y and x, y-1 have a wall between them
+        int a = x + GRID_SIZE * y;
+        int b = x + GRID_SIZE * (y - 1);
+        maze[a][b] = true;
+        maze[b][a] = true;
+      }
+      break;
+    case RIGHT:
+      for (int i = ax; i <= bx - 1; i++) {
+        int x = i + 1;
+        int y = ay + 1;
+        // x, y and x, y-1 have a wall between them
+        int a = x + GRID_SIZE * y;
+        int b = x + GRID_SIZE * (y - 1);
+        maze[a][b] = true;
+        maze[b][a] = true;
+      }
+      break;
+    }
+    // WALLS
+
     // Mark current node as visited
     visited[a] = true;
     visited_size++;
     // Remove current node from the frontier
     frontier_mask[a] = false;
   }
+
+  // complete the maze
+  // border of the grid is also a part of the maze
+  int x_last = GRID_SIZE - 1;
+  int y_last = x_last * GRID_SIZE;
+  // wall between topmost and bottom most tiles
+  for (int i = 0; i <= x_last; i++) {
+    maze[i][i + y_last] = true;
+    maze[i + y_last][i] = true;
+  }
+  // wall between leftmost and rightmost tiles
+  for (int i = 0; i <= y_last; i += GRID_SIZE) {
+    maze[i][i + x_last] = true;
+    maze[i + x_last][i] = true;
+  }
 }
 
 void render_tree(SDL_Renderer *renderer, int x, int y) {
-  SDL_SetRenderDrawColor(renderer, 0x00, 0xff, 0x28, 255);
+  SDL_SetRenderDrawColor(renderer, 0x00, 0xff, 0x00, 255);
 
   int node_size = (GRID_DIM / GRID_SIZE);
 
@@ -490,42 +586,147 @@ void render_tree(SDL_Renderer *renderer, int x, int y) {
   node.w = node_size / 4;
   node.h = node_size / 4;
 
-  bool one_d_tree[V * V] = {false};
-  for (int i = 0; i < V; i++) {
-    for (int j = 0; j < V; j++) {
-      one_d_tree[j + V * i] = spanning_tree[i][j];
-    }
-  }
-
   // array of nodes to draw the graph
   SDL_Rect nodes[V];
 
   // calculate node positions
   int k = 0;
-  for (int i = 0; i < TREE_DIM; i++) {
-    for (int j = 0; j < TREE_DIM; j++, k++) {
-      node.x = x + i * node_size * 2 + 3 * node_size / 4;
-      node.y = y + j * node_size * 2 + 3 * node_size / 4;
+  for (int i = 0; i < TREE_SIZE; i++) {
+    for (int j = 0; j < TREE_SIZE; j++, k++) {
+      node.x = x + j * node_size * 2 + node_size;
+      node.y = y + i * node_size * 2 + node_size;
       nodes[k] = node;
     }
   }
 
   // draw nodes
-  /* for (int i = 0; i < V; i++) {
+  for (int i = 0; i < V; i++) {
     SDL_Rect temp = nodes[i];
-    temp.x = temp.x + node_size/8;
-    temp.y = temp.y + node_size/8;
+    temp.x = temp.x - node_size / 8;
+    temp.y = temp.y - node_size / 8;
     SDL_RenderFillRect(renderer, &temp); // no fill
-  } */
+  }
 
   // draw lines
   for (int i = 0; i < V; i++) {
     for (int j = 0; j < V; j++) {
       if (spanning_tree[j][i] == true && spanning_tree[i][j] == true) {
-        SDL_RenderDrawLine(renderer, nodes[i].x + node_size / 4, nodes[i].y + node_size / 4,
-                           nodes[j].x + node_size / 4, nodes[j].y + node_size / 4);
+        SDL_RenderDrawLine(renderer, nodes[i].x, nodes[i].y, nodes[j].x,
+                           nodes[j].y);
       }
     }
+  }
+}
+
+void turn_left() {
+  switch (snake_dir) {
+  case UP:
+    snake_dir = LEFT;
+    break;
+  case DOWN:
+    snake_dir = RIGHT;
+    break;
+  case LEFT:
+    snake_dir = DOWN;
+    break;
+  case RIGHT:
+    snake_dir = UP;
+    break;
+  }
+}
+
+void turn_right() {
+  switch (snake_dir) {
+  case UP:
+    snake_dir = RIGHT;
+    break;
+  case DOWN:
+    snake_dir = LEFT;
+    break;
+  case LEFT:
+    snake_dir = UP;
+    break;
+  case RIGHT:
+    snake_dir = DOWN;
+    break;
+  }
+}
+
+Point try_right(Point try, Dir d) {
+  switch (d) {
+  case UP:
+    try.x = mod(try.x + 1, GRID_SIZE);
+    break;
+  case DOWN:
+    try.x = mod(try.x - 1, GRID_SIZE);
+    break;
+  case LEFT:
+    try.y = mod(try.y - 1, GRID_SIZE);
+    break;
+  case RIGHT:
+    try.y = mod(try.y + 1, GRID_SIZE);
+    break;
+  }
+  return try;
+}
+
+Point try_forward(Point try, Dir d) {
+  switch (d) {
+  case UP:
+    try.y = mod(try.y - 1, GRID_SIZE);
+    break;
+  case DOWN:
+    try.y = mod(try.y + 1, GRID_SIZE);
+    break;
+  case LEFT:
+    try.x = mod(try.x - 1, GRID_SIZE);
+    break;
+  case RIGHT:
+    try.x = mod(try.x + 1, GRID_SIZE);
+    break;
+  }
+  return try;
+}
+
+Point try_left(Point try, Dir d) {
+  switch (d) {
+  case UP:
+    try.x = mod(try.x - 1, GRID_SIZE);
+    break;
+  case DOWN:
+    try.x = mod(try.x + 1, GRID_SIZE);
+    break;
+  case LEFT:
+    try.y = mod(try.y + 1, GRID_SIZE);
+    break;
+  case RIGHT:
+    try.y = mod(try.y - 1, GRID_SIZE);
+    break;
+  }
+  return try;
+}
+
+void traverse_maze() {
+  // generate the next move that traverses the maze
+  Point head = snake[snake_begin_index];
+  Point try_r = try_right(head, snake_dir);
+  Point try_f = try_forward(head, snake_dir);
+  Point try_l = try_left(head, snake_dir);
+  int a = head.x + GRID_SIZE * head.y;
+  int b_r = try_r.x + GRID_SIZE * try_r.y;
+  int b_f = try_f.x + GRID_SIZE * try_f.y;
+  int b_l = try_l.x + GRID_SIZE * try_l.y;
+  if (maze[a][b_r] == false) {
+    // no wall between head and right tile
+    // turn right skip the rest
+    turn_right();
+  } else if (maze[a][b_f] == false) {
+    // no wall between head and forward tile
+    // move forward skip the rest
+  } else if (maze[a][b_l] == false) {
+    // no wall between head and forward tile
+    // turn left skip the rest
+    turn_left();
   }
 }
 
@@ -555,7 +756,9 @@ int main() {
   int grid_y = (WINDOW_HEIGHT / 2) - (GRID_DIM / 2);
 
   bool quit = false;
-  bool pause = false;
+  bool pause = true;
+  bool ai = false;
+  bool show_tree = true;
   SDL_Event event;
 
   int flash_dur = 0;
@@ -576,21 +779,27 @@ int main() {
         case SDLK_p:
           pause = !pause;
           break;
+        case SDLK_i:
+          ai = !ai;
+          break;
+        case SDLK_m:
+          show_tree = !show_tree;
+          break;
         case SDLK_w:
-          if (snake_dir != SNAKE_DOWN)
-            snake_dir = SNAKE_UP;
+          if (snake_dir != DOWN)
+            snake_dir = UP;
           break;
         case SDLK_a:
-          if (snake_dir != SNAKE_RIGHT)
-            snake_dir = SNAKE_LEFT;
+          if (snake_dir != RIGHT)
+            snake_dir = LEFT;
           break;
         case SDLK_s:
-          if (snake_dir != SNAKE_UP)
-            snake_dir = SNAKE_DOWN;
+          if (snake_dir != UP)
+            snake_dir = DOWN;
           break;
         case SDLK_d:
-          if (snake_dir != SNAKE_LEFT)
-            snake_dir = SNAKE_RIGHT;
+          if (snake_dir != LEFT)
+            snake_dir = RIGHT;
           break;
         }
         break;
@@ -599,12 +808,17 @@ int main() {
     SDL_RenderClear(renderer);
     // Render Loop Start
     if (!pause) {
+      if (!ai) {
+        traverse_maze();
+      }
       move_snake();
     }
     render_grid(renderer, grid_x, grid_y);
-    render_tree(renderer, grid_x, grid_y);
     render_snake(renderer, grid_x, grid_y);
     render_fruit(renderer, grid_x, grid_y);
+    if (!show_tree) {
+      render_tree(renderer, grid_x, grid_y);
+    }
 
     if (fruit.score % 10 == 0 && fruit.score != 0) {
       flash_dur = 10;
