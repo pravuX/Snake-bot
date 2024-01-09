@@ -5,14 +5,14 @@
 #define WINDOW_X 500
 #define WINDOW_Y 50
 
-#define GRID_SIZE 28
+#define GRID_SIZE 48
 #define TREE_SIZE (GRID_SIZE / 2)
 #define V (TREE_SIZE * TREE_SIZE)
 #define V_M (GRID_SIZE * GRID_SIZE)
 #define MAX_SNAKE_SIZE (GRID_SIZE * GRID_SIZE)
 #define GRID_DIM 800
 
-#define DELAY 40
+#define DELAY 5
 
 typedef enum {
   UP,    // 0
@@ -107,7 +107,7 @@ void delete_snake() {
 void render_grid(SDL_Renderer *renderer, int x, int y) {
   SDL_SetRenderDrawColor(renderer, 0x28, 0x28, 0x28, 255);
   // set 1 for rendering grid
-#if 0
+#if 1
 
   int cell_size = GRID_DIM / GRID_SIZE;
 
@@ -256,8 +256,7 @@ void render_snake(SDL_Renderer *renderer, int x, int y) {
     seg.x = x + snake[snake_index].x * seg_size;
     seg.y = y + snake[snake_index].y * seg_size;
     SDL_RenderFillRect(renderer, &seg);
-    // dot pointing int the direction of snake head
-    // size = 1 so no need to worry to much
+    // dot pointing in the direction of snake head
     SDL_SetRenderDrawColor(renderer, 0x00, 0x26, 0xab, 255);
     dir_dot_1.x = x + snake[snake_begin_index].x * seg_size;
     dir_dot_1.y = y + snake[snake_begin_index].y * seg_size;
@@ -455,6 +454,8 @@ void gen_tree() {
     spanning_tree[b][a] = true;
     // WALLS
     // these points are scaled and tranlated to map onto the grid
+    // - 1 in for loops because we don't want to include bottom most or leftmost
+    // tile in the connection
     int ax = current.x * 2;
     int ay = current.y * 2;
     int bx = next.x * 2;
@@ -658,19 +659,185 @@ Point try_left(Point try, Dir d) {
   }
   return try;
 }
+// each int represents a point in the tile
+int maze_path[V_M];
+int maze_size = 0;
+
+Dir get_left(Dir try_dir) {
+  switch (try_dir) {
+  case UP:
+    return LEFT;
+    break;
+  case DOWN:
+    return RIGHT;
+    break;
+  case LEFT:
+    return DOWN;
+    break;
+  case RIGHT:
+    return UP;
+    break;
+  }
+}
+
+Dir get_right(Dir try_dir) {
+  switch (try_dir) {
+  case UP:
+    return RIGHT;
+    break;
+  case DOWN:
+    return LEFT;
+    break;
+  case LEFT:
+    return UP;
+    break;
+  case RIGHT:
+    return DOWN;
+    break;
+  }
+}
+
+void gen_maze_path() {
+  // the hamiltonian cycle traced by the snake as it travrses the maze
+  Point head = snake[snake_begin_index];
+  Point try_head = head;
+  Dir try_dir = snake_dir;
+  while (maze_size < V_M) {
+    Point try_r = try_right(try_head, try_dir);
+    Point try_f = try_forward(try_head, try_dir);
+    Point try_l = try_left(try_head, try_dir);
+    int a = try_head.x + GRID_SIZE * try_head.y;
+    maze_path[maze_size++] = a;
+    int b_r = try_r.x + GRID_SIZE * try_r.y;
+    int b_f = try_f.x + GRID_SIZE * try_f.y;
+    int b_l = try_l.x + GRID_SIZE * try_l.y;
+    // the right hand maze traversing algorithm
+    if (maze[a][b_r] == false) {
+      // no wall between head and right tile
+      // turn right skip the rest
+      try_head = try_r;
+      try_dir = get_right(try_dir);
+    } else if (maze[a][b_f] == false) {
+      // no wall between head and forward tile
+      // move forward skip the rest
+      try_head = try_f;
+    } else if (maze[a][b_l] == false) {
+      // no wall between head and forward tile
+      // turn left skip the rest
+      try_head = try_l;
+      // also change try_dir
+      try_dir = get_left(try_dir);
+    }
+  }
+}
+
+int distance_to_fruit(int try_head) {
+  int f = fruit.p.x + GRID_SIZE * fruit.p.y;
+  int try_head_pos_in_maze, fruit_pos_in_maze;
+
+  for (int i = 0; i < V_M; i++) {
+    if (try_head == maze_path[i]) {
+      try_head_pos_in_maze = i;
+    }
+    if (f == maze_path[i]) {
+      fruit_pos_in_maze = i;
+    }
+  }
+
+  int distance = 0;
+  for (int i = try_head_pos_in_maze; i != fruit_pos_in_maze;
+       i = (i + 1) % V_M) {
+    distance++;
+  }
+  return abs(distance);
+}
+
+bool is_ordered(int head, int try_head, int tail) {
+  int try_head_pos_in_maze;
+  int tail_pos_in_maze;
+  int head_pos_in_maze;
+  for (int i = 0; i < V_M; i++) {
+    if (try_head == maze_path[i]) {
+      try_head_pos_in_maze = i;
+    }
+    if (tail == maze_path[i]) {
+      tail_pos_in_maze = i;
+    }
+    if (head == maze_path[i]) {
+      head_pos_in_maze = i;
+    }
+  }
+  // if try head comes between current tail and head return false
+  // else return true;
+  for (int i = tail_pos_in_maze; i != head_pos_in_maze;
+      i = (i + 1) % V_M) {
+    if (try_head_pos_in_maze == i) {
+      return false;
+    }
+  }
+  return true;
+}
 
 void traverse_maze() {
-  // generate the next move that traverses the maze
   Point head = snake[snake_begin_index];
   Point try_r = try_right(head, snake_dir);
   Point try_f = try_forward(head, snake_dir);
   Point try_l = try_left(head, snake_dir);
   int a = head.x + GRID_SIZE * head.y;
+  int snake_tail_index = mod(snake_begin_index + snake_size - 1, MAX_SNAKE_SIZE);
+  int tail = snake[snake_tail_index].x + GRID_SIZE * snake[snake_tail_index].y;
   int b_r = try_r.x + GRID_SIZE * try_r.y;
   int b_f = try_f.x + GRID_SIZE * try_f.y;
   int b_l = try_l.x + GRID_SIZE * try_l.y;
-  // the right hand maze traversing algorithm
-  if (maze[a][b_r] == false) {
+  int distance_to_fruit_from_r = distance_to_fruit(b_r);
+  int distance_to_fruit_from_f = distance_to_fruit(b_f);
+  int distance_to_fruit_from_l = distance_to_fruit(b_l);
+
+  bool is_ordered_at_r = is_ordered(a, b_r, tail);
+  bool is_ordered_at_f = is_ordered(a, b_f, tail);
+  bool is_ordered_at_l = is_ordered(a, b_l, tail);
+
+  // turn in the distance that minimizes path cost to fruit
+  // while making sure order of the snake in the maze path is
+  // not broken and it doesnot hit a wall
+
+  // there's probably a better way of doing this
+  // inflate the distances of those direction where there is a wall
+  // or moving to which will break the snake order
+  if (!is_ordered_at_r) {
+    distance_to_fruit_from_r += V_M;
+  }
+  if (!is_ordered_at_f) {
+    distance_to_fruit_from_f += V_M;
+  }
+  if (!is_ordered_at_l) {
+    distance_to_fruit_from_l += V_M;
+  }
+  if (maze[a][b_r]) {
+    distance_to_fruit_from_r += V_M;
+  }
+  if (maze[a][b_f]) {
+    distance_to_fruit_from_f += V_M;
+  }
+  if (maze[a][b_l]) {
+    distance_to_fruit_from_l += V_M;
+  }
+
+
+  if (distance_to_fruit_from_r <= distance_to_fruit_from_f &&
+      distance_to_fruit_from_r <= distance_to_fruit_from_l) {
+    turn_right();
+  } else {
+    if (distance_to_fruit_from_f < distance_to_fruit_from_l) {
+      // continue forwared
+    } else {
+      turn_left();
+    }
+  }
+
+  // traverse maze without taking shortcuts
+
+  /* if (maze[a][b_r] == false) {
     // no wall between head and right tile
     // turn right skip the rest
     turn_right();
@@ -681,7 +848,7 @@ void traverse_maze() {
     // no wall between head and forward tile
     // turn left skip the rest
     turn_left();
-  }
+  } */
 }
 
 int main() {
@@ -690,6 +857,7 @@ int main() {
   init_snake(5);
   gen_fruit();
   gen_tree();
+  gen_maze_path();
 
   fruit.score = 0;
   fruit.high_score = 0;
