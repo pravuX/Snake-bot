@@ -5,7 +5,7 @@
 #define WINDOW_X 500
 #define WINDOW_Y 50
 
-#define GRID_SIZE 48
+#define GRID_SIZE 14
 #define TREE_SIZE (GRID_SIZE / 2)
 #define V (TREE_SIZE * TREE_SIZE)
 #define V_M (GRID_SIZE * GRID_SIZE)
@@ -789,17 +789,19 @@ void traverse_maze() {
   int b_r = try_r.x + GRID_SIZE * try_r.y;
   int b_f = try_f.x + GRID_SIZE * try_f.y;
   int b_l = try_l.x + GRID_SIZE * try_l.y;
-  int distance_to_fruit_from_r = distance_to_fruit(b_r);
-  int distance_to_fruit_from_f = distance_to_fruit(b_f);
-  int distance_to_fruit_from_l = distance_to_fruit(b_l);
 
-  bool is_ordered_at_r = is_ordered(a, b_r, tail);
-  bool is_ordered_at_f = is_ordered(a, b_f, tail);
-  bool is_ordered_at_l = is_ordered(a, b_l, tail);
+  if (snake_size <= V_M / 2) {
 
   // turn in the distance that minimizes path cost to fruit
   // while making sure order of the snake in the maze path is
   // not broken and it doesnot hit a wall
+
+  int distance_to_fruit_from_r = distance_to_fruit(b_r);
+  int distance_to_fruit_from_f = distance_to_fruit(b_f);
+  int distance_to_fruit_from_l = distance_to_fruit(b_l);
+  bool is_ordered_at_r = is_ordered(a, b_r, tail);
+  bool is_ordered_at_f = is_ordered(a, b_f, tail);
+  bool is_ordered_at_l = is_ordered(a, b_l, tail);
 
   // there's probably a better way of doing this
   // inflate the distances of those direction where there is a wall
@@ -834,10 +836,11 @@ void traverse_maze() {
       turn_left();
     }
   }
+  } else {
 
   // traverse maze without taking shortcuts
 
-  /* if (maze[a][b_r] == false) {
+  if (maze[a][b_r] == false) {
     // no wall between head and right tile
     // turn right skip the rest
     turn_right();
@@ -848,7 +851,8 @@ void traverse_maze() {
     // no wall between head and forward tile
     // turn left skip the rest
     turn_left();
-  } */
+  }
+  }
 }
 
 int main() {
