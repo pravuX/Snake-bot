@@ -12,7 +12,7 @@
 #define MAX_SNAKE_SIZE (GRID_SIZE * GRID_SIZE)
 #define GRID_DIM 800
 
-#define DELAY 5
+#define DELAY 0
 
 typedef enum {
   UP,    // 0
@@ -93,9 +93,6 @@ void add_snake(int x, int y) {
   snake[snake_begin_index].x = x;
   snake[snake_begin_index].y = y;
   snake_size++;
-  if (snake_size >= (GRID_SIZE * GRID_SIZE) - 1) {
-    reset_game();
-  }
 }
 
 void delete_snake() {
@@ -149,6 +146,10 @@ void render_fruit(SDL_Renderer *renderer, int x, int y) {
 }
 
 void gen_fruit() {
+  if (snake_size == (GRID_SIZE * GRID_SIZE)) {
+    printf("ERROR: No Fruit Can be generated");
+    return;
+  }
   int x, y;
   bool overlap;
   do {
@@ -946,6 +947,9 @@ int main() {
     render_score(renderer, -25, grid_y + GRID_DIM);
     render_high_score(renderer, GRID_DIM - 3 * grid_x + 25, grid_y + GRID_DIM);
 
+    if (snake_size >= (GRID_SIZE * GRID_SIZE) - 1) {
+      pause = true;
+    }
     SDL_Delay(DELAY);
     // Render Loop End
     SDL_SetRenderDrawColor(renderer, 0x11, 0x11, 0x11, 255);
